@@ -33,10 +33,26 @@ dependencies {
     implementation(projects.utils.spdxUtils)
 
     implementation(libs.kotlinx.coroutines)
-    implementation(libs.scanoss) {
-        exclude(group = "org.slf4j", module = "slf4j-simple")
-            .because("the logging provider conflicts with ORT's")
-    }
+
+//    implementation("com.scanoss:scanoss:0.8.0") {
+//        exclude(group = "org.slf4j", module = "slf4j-simple")
+//            .because("the logging provider conflicts with ORT's")
+//    }
+
+
+//    implementation("com.google.code.gson:gson:2.10.1")
+//
+//    implementation ("com.github.package-url:packageurl-java:1.5.0")
+//    implementation ("com.squareup.okhttp3:okhttp:4.12.0")
+//    implementation("org.apache.tika:tika-core:2.8.0")
+
+
+    //NOTE: Works for testing
+    implementation(
+        files("${rootProject.projectDir}/libs/scanoss-0.8.0-jar-with-dependencies-no-slf4j.jar")
+    )
+
+
 
     funTestApi(testFixtures(projects.scanner))
 

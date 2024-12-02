@@ -19,11 +19,16 @@
 
 package org.ossreviewtoolkit.plugins.scanners.scanoss
 
+import com.scanoss.ScannerPostProcessor
 import com.scanoss.Winnowing
 import com.scanoss.dto.ScanFileResult
 import com.scanoss.rest.ScanApi
+import com.scanoss.settings.Bom
+import com.scanoss.settings.Rule
+import com.scanoss.settings.ReplaceRule
 import com.scanoss.utils.JsonUtils
 import com.scanoss.utils.PackageDetails
+
 
 import java.io.File
 import java.time.Instant
@@ -32,6 +37,9 @@ import java.util.UUID
 import org.apache.logging.log4j.kotlin.logger
 
 import org.ossreviewtoolkit.model.ScanSummary
+import org.ossreviewtoolkit.model.config.SnippetChoices
+import org.ossreviewtoolkit.model.config.snippet.SnippetChoice
+import org.ossreviewtoolkit.model.config.snippet.SnippetChoiceReason
 import org.ossreviewtoolkit.scanner.PathScannerWrapper
 import org.ossreviewtoolkit.scanner.ScanContext
 import org.ossreviewtoolkit.scanner.ScannerMatcher
@@ -39,6 +47,8 @@ import org.ossreviewtoolkit.scanner.ScannerWrapperConfig
 import org.ossreviewtoolkit.scanner.ScannerWrapperFactory
 import org.ossreviewtoolkit.utils.common.Options
 import org.ossreviewtoolkit.utils.common.VCS_DIRECTORIES
+import java.nio.file.Path
+import java.nio.file.Paths
 
 class ScanOss internal constructor(
     override val name: String,
@@ -53,11 +63,13 @@ class ScanOss internal constructor(
             ScanOssConfig.create(options, secrets).also { logger.info { "The $type API URL is ${it.apiUrl}." } }
     }
 
+
     private val service = ScanApi.builder()
         // As there is only a single endpoint, the SCANOSS API client expects the path to be part of the API URL.
         .url(config.apiUrl.removeSuffix("/") + "/scan/direct")
         .apiKey(config.apiKey)
         .build()
+
 
     override val version: String by lazy {
         // TODO: Find out the best / cheapest way to query the SCANOSS server for its version.
@@ -85,6 +97,10 @@ class ScanOss internal constructor(
     override fun scanPath(path: File, context: ScanContext): ScanSummary {
         val startTime = Instant.now()
 
+
+        // Process context and build BOM
+        val bom = processContextAndBuildBom(context, path.toPath())
+
         val wfpString = buildString {
             path.walk()
                 .onEnter { it.name !in VCS_DIRECTORIES }
@@ -101,6 +117,8 @@ class ScanOss internal constructor(
             context.labels["scanOssId"]?.toIntOrNull() ?: Thread.currentThread().threadId().toInt()
         )
 
+
+
         // Replace the anonymized UUIDs by their file paths.
         val results = JsonUtils.toScanFileResultsFromObject(JsonUtils.toJsonObject(result)).map {
             val uuid = UUID.fromString(it.filePath)
@@ -112,8 +130,125 @@ class ScanOss internal constructor(
             ScanFileResult(fileName, it.fileDetails)
         }
 
+        val scannerPostProcessor: ScannerPostProcessor = ScannerPostProcessor();
+        var postProcessedResults = scannerPostProcessor.process(results, bom);
+
+        postProcessedResults.forEach { postProcessedResult ->
+            println("** RESULT **")
+            println(postProcessedResult.toString())
+            println("** RESULT **")
+        }
+
         val endTime = Instant.now()
-        return generateSummary(startTime, endTime, results)
+        return generateSummary(startTime, endTime, postProcessedResults)
+    }
+
+
+    private data class ProcessedRules(
+        val includeRules: List<Rule>,
+        val ignoreRules: List<Rule>,
+        val replaceRules: List<ReplaceRule>,
+        val removeRules: List<Rule>
+    )
+
+    private fun processContextAndBuildBom(context: ScanContext, rootPath: Path): Bom {
+        val rules = processSnippetChoices(context.snippetChoices, rootPath)
+        return buildBomFromRules(rules)
+    }
+
+    private fun processSnippetChoices(snippetChoices: List<SnippetChoices>, rootPath: Path): ProcessedRules {
+        val includeRules = mutableListOf<Rule>()
+        val ignoreRules = mutableListOf<Rule>()
+        val replaceRules = mutableListOf<ReplaceRule>()
+        val removeRules = mutableListOf<Rule>()
+
+        snippetChoices.forEach { snippetChoice ->
+            snippetChoice.choices.forEach { choice ->
+                when (choice.choice.reason) {
+                    SnippetChoiceReason.ORIGINAL_FINDING -> {       //TODO: Choices can be made at snippet basis. How handle those cases?
+                        processOriginalFinding(
+                            choice = choice,
+                            includeRules = includeRules,
+                            replaceRules = replaceRules,
+                            rootPath = rootPath,
+                        )
+                    }
+                    SnippetChoiceReason.NO_RELEVANT_FINDING -> {
+                        processNoRelevantFinding(
+                            choice = choice,
+                            removeRules = removeRules,
+                            ignoreRules = ignoreRules,
+                            rootPath = rootPath,
+                        )
+                    }
+                    SnippetChoiceReason.OTHER -> {
+                        processOtherReason(choice)
+                    }
+                }
+            }
+        }
+
+        return ProcessedRules(includeRules, ignoreRules,replaceRules, removeRules)
+    }
+
+    private fun processOriginalFinding(
+        choice: SnippetChoice,
+        includeRules: MutableList<Rule>,
+        replaceRules: MutableList<ReplaceRule>,
+        rootPath: Path,
+    ) {
+
+
+
+        includeRules.add(
+            Rule.builder()
+                .purl(choice.choice.purl)
+                .path(rootPath.resolve(Paths.get(choice.given.sourceLocation.path)).toString())
+                .build()
+        )
+
+        replaceRules.add(       //TODO: If a component actually contains {choice.choice.purl} it should not be replaced
+                                // by the PostProcessorScanner
+            ReplaceRule.builder()
+                .path(rootPath.resolve(Paths.get(choice.given.sourceLocation.path)).toString())
+                .replaceWith(choice.choice.purl)
+                .build()
+        )
+    }
+
+    private fun processNoRelevantFinding(
+        choice: SnippetChoice,
+        removeRules: MutableList<Rule>,
+        ignoreRules: MutableList<Rule>,
+        rootPath: Path,
+    ) {
+        removeRules.add(
+            Rule.builder()
+                .path(rootPath.resolve(Paths.get(choice.given.sourceLocation.path)).toString())
+                .build()
+        )
+        ignoreRules.add(
+            Rule.builder()
+                .path(rootPath.resolve(Paths.get(choice.given.sourceLocation.path)).toString())
+                .purl(choice.choice.purl)
+                .build()
+        )
+    }
+
+    private fun processOtherReason(snippetChoice: SnippetChoice) {
+        logger.info {
+            "Encountered OTHER reason for snippet choice in file ${snippetChoice.given.sourceLocation.path}"
+        }
+    }
+
+    private fun buildBomFromRules(rules: ProcessedRules): Bom {
+        return Bom.builder()
+            .apply {
+                rules.includeRules.forEach { include(it) }
+                rules.replaceRules.forEach { replace(it) }
+                rules.removeRules.forEach { remove(it) }
+            }
+            .build()
     }
 
     internal fun generateRandomUUID() = UUID.randomUUID()
