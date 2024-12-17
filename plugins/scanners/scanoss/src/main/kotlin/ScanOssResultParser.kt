@@ -35,6 +35,7 @@ import org.ossreviewtoolkit.model.TextLocation
 import org.ossreviewtoolkit.utils.spdx.SpdxConstants
 import org.ossreviewtoolkit.utils.spdx.SpdxExpression
 import org.ossreviewtoolkit.utils.spdx.SpdxLicenseIdExpression
+import kotlin.math.min
 
 /**
  * Generate a summary from the given SCANOSS [result], using [startTime], [endTime] as metadata. This variant can be
@@ -59,12 +60,19 @@ internal fun generateSummary(startTime: Instant, endTime: Instant, results: List
                     val sourceLocations = convertLines(file, lines)
                     val snippets = getSnippets(details)
 
+                    //if sourceLocations.size !== snippets.size
+                    //
+                    for (i in 0 until min(sourceLocations.size, snippets.size)) {
+                        snippetFindings += SnippetFinding(sourceLocations[i], setOf(snippets[i]))
+                    }
+
+                    /*
                     snippets.forEach { snippet ->
                         sourceLocations.forEach { sourceLocation ->
                             // TODO: Aggregate the snippet by source file location.
                             snippetFindings += SnippetFinding(sourceLocation, setOf(snippet))
                         }
-                    }
+                    }*/
                 }
 
                 "none" -> {
@@ -135,7 +143,7 @@ private fun getCopyrightFindings(details: ScanFileDetails): List<CopyrightFindin
  * Get the snippet findings from the given [details]. If a snippet returned by ScanOSS contains several Purls,
  * several snippets are created in ORT each containing a single Purl.
  */
-private fun getSnippets(details: ScanFileDetails): Set<Snippet> {
+private fun getSnippets(details: ScanFileDetails): List<Snippet> {
     val matched = requireNotNull(details.matched)
     val fileUrl = requireNotNull(details.fileUrl)
     val ossLines = requireNotNull(details.ossLines)
@@ -152,7 +160,7 @@ private fun getSnippets(details: ScanFileDetails): Set<Snippet> {
     val vcsInfo = VcsHost.parseUrl(url.takeUnless { it == "none" }.orEmpty())
     val provenance = RepositoryProvenance(vcsInfo, ".")
 
-    return buildSet {
+    return buildList {
         purls.forEach { purl ->
             locations.forEach { snippetLocation ->
                 val license = licenses.reduceOrNull(SpdxExpression::and)?.sorted()

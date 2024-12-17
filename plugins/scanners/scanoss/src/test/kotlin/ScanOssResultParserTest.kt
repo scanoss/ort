@@ -132,5 +132,55 @@ class ScanOssResultParserTest : WordSpec({
                 )
             )
         }
+
+
+        "should create snippet findings from ScanOSS results with multiple license references" {
+            val results = File("src/test/assets/scanoss-snippet.json").readText().let {
+                JsonUtils.toScanFileResultsFromObject(JsonUtils.toJsonObject(it))
+            }
+
+            val time = Instant.now()
+            val summary = generateSummary(time, time, results)
+
+            summary.licenses.map { it.toString() } should containExactlyInAnyOrder(
+                "GPL-2.0-or-later",
+                "GPL-1.0-or-later",
+                "GPL-2.0-only"
+            )
+
+            summary.licenseFindings should haveSize(4)
+            summary.licenseFindings shouldContain LicenseFinding(
+                license = "GPL-2.0-or-later",
+                location = TextLocation(
+                    path = "inc/scanner.h",
+                    startLine = TextLocation.UNKNOWN_LINE,
+                    endLine = TextLocation.UNKNOWN_LINE
+                ),
+                score = 47.0f
+            )
+
+            summary.snippetFindings shouldHaveSize(1)
+            summary.snippetFindings.shouldContainExactly(
+                SnippetFinding(
+                    TextLocation("inc/scanner.h", 7, 145),
+                    setOf(
+                        Snippet(
+                            47.0f,
+                            TextLocation(
+                                "https://api.osskb.org/file_contents/864aa0b97465959b5287b2ef6de4011c",
+                                7,
+                                146
+                            ),
+                            RepositoryProvenance(
+                                VcsInfo(VcsType.GIT, "https://github.com/scanoss/scanner.c", ""),
+                                "."
+                            ),
+                            "pkg:github/scanoss/scanner.c",
+                            SpdxExpression.parse("GPL-2.0-or-later")
+                        )
+                    )
+                )
+            )
+        }
     }
 })
