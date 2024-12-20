@@ -21,6 +21,7 @@ package org.ossreviewtoolkit.plugins.scanners.scanoss
 
 import com.scanoss.dto.ScanFileDetails
 import com.scanoss.dto.ScanFileResult
+import org.apache.logging.log4j.kotlin.loggerOf
 
 import java.time.Instant
 
@@ -35,7 +36,10 @@ import org.ossreviewtoolkit.model.TextLocation
 import org.ossreviewtoolkit.utils.spdx.SpdxConstants
 import org.ossreviewtoolkit.utils.spdx.SpdxExpression
 import org.ossreviewtoolkit.utils.spdx.SpdxLicenseIdExpression
+import java.lang.invoke.MethodHandles
 import kotlin.math.min
+
+private val logger = loggerOf(MethodHandles.lookup().lookupClass())
 
 /**
  * Generate a summary from the given SCANOSS [result], using [startTime], [endTime] as metadata. This variant can be
@@ -60,19 +64,25 @@ internal fun generateSummary(startTime: Instant, endTime: Instant, results: List
                     val sourceLocations = convertLines(file, lines)
                     val snippets = getSnippets(details)
 
-                    //if sourceLocations.size !== snippets.size
-                    //
-                    for (i in 0 until min(sourceLocations.size, snippets.size)) {
-                        snippetFindings += SnippetFinding(sourceLocations[i], setOf(snippets[i]))
+
+                    if (sourceLocations.size != snippets.size) {
+                        logger.warn("number of local line ranges does not match with oss lines on file '$file'")
                     }
 
                     /*
+                    for (i in 0 until min(sourceLocations.size, snippets.size)) {
+                        snippetFindings += SnippetFinding(sourceLocations[i], setOf(snippets[i]))
+                    }
+*/
+
+
                     snippets.forEach { snippet ->
                         sourceLocations.forEach { sourceLocation ->
                             // TODO: Aggregate the snippet by source file location.
                             snippetFindings += SnippetFinding(sourceLocation, setOf(snippet))
                         }
-                    }*/
+                    }
+
                 }
 
                 "none" -> {

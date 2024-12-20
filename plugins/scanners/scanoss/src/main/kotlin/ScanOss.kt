@@ -19,6 +19,7 @@
 
 package org.ossreviewtoolkit.plugins.scanners.scanoss
 
+import com.scanoss.Scanner
 import com.scanoss.Winnowing
 import com.scanoss.dto.ScanFileResult
 import com.scanoss.rest.ScanApi
