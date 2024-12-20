@@ -21,6 +21,7 @@ package org.ossreviewtoolkit.plugins.scanners.scanoss
 
 import com.scanoss.dto.ScanFileDetails
 import com.scanoss.dto.ScanFileResult
+import com.scanoss.dto.enums.MatchType
 import org.apache.logging.log4j.kotlin.loggerOf
 
 import java.time.Instant
@@ -69,19 +70,11 @@ internal fun generateSummary(startTime: Instant, endTime: Instant, results: List
                         logger.warn("number of local line ranges does not match with oss lines on file '$file'")
                     }
 
-                    /*
+
                     for (i in 0 until min(sourceLocations.size, snippets.size)) {
                         snippetFindings += SnippetFinding(sourceLocations[i], setOf(snippets[i]))
                     }
-*/
 
-
-                    snippets.forEach { snippet ->
-                        sourceLocations.forEach { sourceLocation ->
-                            // TODO: Aggregate the snippet by source file location.
-                            snippetFindings += SnippetFinding(sourceLocation, setOf(snippet))
-                        }
-                    }
 
                 }
 
