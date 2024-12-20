@@ -49,7 +49,7 @@ dependencies {
 
     //NOTE: Works for testing
     implementation(
-        files("${rootProject.projectDir}/libs/scanoss-0.8.0-jar-with-dependencies-no-slf4j.jar")
+        files("${rootProject.projectDir}/libs/scanoss-0.8.0-with-dependencies-slf4j-excluded.jar")
     )
 
 

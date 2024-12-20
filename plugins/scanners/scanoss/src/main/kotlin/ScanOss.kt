@@ -27,6 +27,7 @@ import com.scanoss.rest.ScanApi
 import com.scanoss.settings.Bom
 import com.scanoss.settings.Rule
 import com.scanoss.settings.ReplaceRule
+import com.scanoss.settings.RemoveRule
 import com.scanoss.utils.JsonUtils
 import com.scanoss.utils.PackageDetails
 
@@ -130,7 +131,7 @@ class ScanOss internal constructor(
             ScanFileResult(fileName, it.fileDetails)
         }
 
-        val scannerPostProcessor: ScannerPostProcessor = ScannerPostProcessor();
+        val scannerPostProcessor: ScannerPostProcessor = ScannerPostProcessor.builder().build()
         var postProcessedResults = scannerPostProcessor.process(results, bom);
 
         postProcessedResults.forEach { postProcessedResult ->
@@ -148,7 +149,7 @@ class ScanOss internal constructor(
         val includeRules: List<Rule>,
         val ignoreRules: List<Rule>,
         val replaceRules: List<ReplaceRule>,
-        val removeRules: List<Rule>
+        val removeRules: List<RemoveRule>
     )
 
     private fun processContextAndBuildBom(context: ScanContext, rootPath: Path): Bom {
@@ -160,7 +161,7 @@ class ScanOss internal constructor(
         val includeRules = mutableListOf<Rule>()
         val ignoreRules = mutableListOf<Rule>()
         val replaceRules = mutableListOf<ReplaceRule>()
-        val removeRules = mutableListOf<Rule>()
+        val removeRules = mutableListOf<RemoveRule>()
 
         snippetChoices.forEach { snippetChoice ->
             snippetChoice.choices.forEach { choice ->
@@ -218,13 +219,15 @@ class ScanOss internal constructor(
 
     private fun processNoRelevantFinding(
         choice: SnippetChoice,
-        removeRules: MutableList<Rule>,
+        removeRules: MutableList<RemoveRule>,
         ignoreRules: MutableList<Rule>,
         rootPath: Path,
     ) {
         removeRules.add(
-            Rule.builder()
+            RemoveRule.builder()
                 .path(rootPath.resolve(Paths.get(choice.given.sourceLocation.path)).toString())
+                .startLine(choice.given.sourceLocation.startLine)
+                .endLine(choice.given.sourceLocation.endLine)
                 .build()
         )
         ignoreRules.add(

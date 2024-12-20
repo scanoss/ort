@@ -52,13 +52,13 @@ internal fun generateSummary(startTime: Instant, endTime: Instant, results: List
 
     results.forEach { result ->
         result.fileDetails.forEach { details ->
-            when (details.id) {
-                "file" -> {
+            when (details.matchType) {
+                MatchType.file -> {
                     licenseFindings += getLicenseFindings(details)
                     copyrightFindings += getCopyrightFindings(details)
                 }
 
-                "snippet" -> {
+                MatchType.snippet -> {
                     val file = requireNotNull(details.file)
                     val lines = requireNotNull(details.lines)
                     val sourceLocations = convertLines(file, lines)
@@ -85,11 +85,11 @@ internal fun generateSummary(startTime: Instant, endTime: Instant, results: List
 
                 }
 
-                "none" -> {
+                MatchType.none -> {
                     // Skip if no details are available.
                 }
 
-                else -> throw IllegalArgumentException("Unsupported file details id '${details.id}'.")
+                else -> throw IllegalArgumentException("Unsupported file details id '${details.matchType}'.")
             }
         }
     }

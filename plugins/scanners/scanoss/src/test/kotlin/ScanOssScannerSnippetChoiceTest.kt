@@ -81,12 +81,12 @@ class ScanOssScannerSnippetChoiceTest : StringSpec({
                         given = Given(
                             sourceLocation = TextLocation(
                                 path = TEST_DIRECTORY_TO_SCAN.resolve("ArchiveUtils.kt").toString(),
-                                startLine = 1,  // mandatory TODO: This is ignored by SCANOSS (IGNORE)
-                                endLine = 10    // mandatory TODO: This is ignored by SCANOSS
+                                startLine = 1,
+                                endLine = 10
                             )
                         ),
                         choice = Choice(
-                            purl = "pkg:github/scanoss/ort",
+                            purl = "pkg:github/scanoss/scanoss.java",
                             reason = SnippetChoiceReason.ORIGINAL_FINDING,
                             comment = "Optional comment"
                         )
