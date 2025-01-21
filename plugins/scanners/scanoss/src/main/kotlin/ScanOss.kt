@@ -166,7 +166,7 @@ class ScanOss internal constructor(
         snippetChoices.forEach { snippetChoice ->
             snippetChoice.choices.forEach { choice ->
                 when (choice.choice.reason) {
-                    SnippetChoiceReason.ORIGINAL_FINDING -> {       //TODO: Choices can be made at snippet basis. How handle those cases?
+                    SnippetChoiceReason.ORIGINAL_FINDING -> {
                         processOriginalFinding(
                             choice = choice,
                             includeRules = includeRules,
@@ -208,8 +208,8 @@ class ScanOss internal constructor(
                 .build()
         )
 
-        replaceRules.add(       //TODO: If a component actually contains {choice.choice.purl} it should not be replaced
-                                // by the PostProcessorScanner
+        replaceRules.add(
+
             ReplaceRule.builder()
                 .path(rootPath.resolve(Paths.get(choice.given.sourceLocation.path)).toString())
                 .replaceWith(choice.choice.purl)
