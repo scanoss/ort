@@ -24,10 +24,7 @@ import com.scanoss.ScannerPostProcessor
 import com.scanoss.Winnowing
 import com.scanoss.dto.ScanFileResult
 import com.scanoss.rest.ScanApi
-import com.scanoss.settings.Bom
-import com.scanoss.settings.Rule
-import com.scanoss.settings.ReplaceRule
-import com.scanoss.settings.RemoveRule
+import com.scanoss.settings.*
 import com.scanoss.utils.JsonUtils
 import com.scanoss.utils.PackageDetails
 
@@ -64,12 +61,13 @@ class ScanOss internal constructor(
             ScanOssConfig.create(options, secrets).also { logger.info { "The $type API URL is ${it.apiUrl}." } }
     }
 
+    private var config = config
 
-    private val service = ScanApi.builder()
-        // As there is only a single endpoint, the SCANOSS API client expects the path to be part of the API URL.
-        .url(config.apiUrl.removeSuffix("/") + "/scan/direct")
-        .apiKey(config.apiKey)
-        .build()
+//    private var service = ScanApi.builder()
+//        // As there is only a single endpoint, the SCANOSS API client expects the path to be part of the API URL.
+//        .url(config.apiUrl.removeSuffix("/") + "/scan/direct")
+//        .apiKey(config.apiKey)
+//        .build()
 
 
     override val version: String by lazy {
@@ -96,6 +94,10 @@ class ScanOss internal constructor(
     private val fileNamesAnonymizationMapping = mutableMapOf<UUID, String>()
 
     override fun scanPath(path: File, context: ScanContext): ScanSummary {
+        //context.excludes.paths.forEach { it -> it.pattern }
+
+
+
         val startTime = Instant.now()
 
 
@@ -111,14 +113,20 @@ class ScanOss internal constructor(
                     append(createWfpForFile(it))
                 }
         }
+        logger.warn("bom: $bom")
+
+        var service = ScanApi.builder()
+            // As there is only a single endpoint, the SCANOSS API client expects the path to be part of the API URL.
+            .url(config.apiUrl.removeSuffix("/") + "/scan/direct")
+            .apiKey(config.apiKey)
+            .settings(Settings.builder().bom(bom).build())
+            .build()
 
         val result = service.scan(
             wfpString,
             context.labels["scanOssContext"],
             context.labels["scanOssId"]?.toIntOrNull() ?: Thread.currentThread().threadId().toInt()
         )
-
-
 
         // Replace the anonymized UUIDs by their file paths.
         val results = JsonUtils.toScanFileResultsFromObject(JsonUtils.toJsonObject(result)).map {
@@ -134,12 +142,6 @@ class ScanOss internal constructor(
         val scannerPostProcessor: ScannerPostProcessor = ScannerPostProcessor.builder().build()
         var postProcessedResults = scannerPostProcessor.process(results, bom);
 
-        postProcessedResults.forEach { postProcessedResult ->
-            println("** RESULT **")
-            println(postProcessedResult.toString())
-            println("** RESULT **")
-        }
-
         val endTime = Instant.now()
         return generateSummary(startTime, endTime, postProcessedResults)
     }
@@ -154,7 +156,12 @@ class ScanOss internal constructor(
 
     private fun processContextAndBuildBom(context: ScanContext, rootPath: Path): Bom {
         val rules = processSnippetChoices(context.snippetChoices, rootPath)
-        return buildBomFromRules(rules)
+        return Bom.builder()
+            .ignore(rules.ignoreRules)
+            .include(rules.includeRules)
+            .replace(rules.replaceRules)
+            .remove(rules.removeRules)
+            .build()
     }
 
     private fun processSnippetChoices(snippetChoices: List<SnippetChoices>, rootPath: Path): ProcessedRules {
@@ -199,8 +206,6 @@ class ScanOss internal constructor(
         rootPath: Path,
     ) {
 
-
-
         includeRules.add(
             Rule.builder()
                 .purl(choice.choice.purl)
@@ -208,13 +213,6 @@ class ScanOss internal constructor(
                 .build()
         )
 
-        replaceRules.add(
-
-            ReplaceRule.builder()
-                .path(rootPath.resolve(Paths.get(choice.given.sourceLocation.path)).toString())
-                .replaceWith(choice.choice.purl)
-                .build()
-        )
     }
 
     private fun processNoRelevantFinding(
@@ -230,12 +228,6 @@ class ScanOss internal constructor(
                 .endLine(choice.given.sourceLocation.endLine)
                 .build()
         )
-        ignoreRules.add(
-            Rule.builder()
-                .path(rootPath.resolve(Paths.get(choice.given.sourceLocation.path)).toString())
-                .purl(choice.choice.purl)
-                .build()
-        )
     }
 
     private fun processOtherReason(snippetChoice: SnippetChoice) {
@@ -244,15 +236,6 @@ class ScanOss internal constructor(
         }
     }
 
-    private fun buildBomFromRules(rules: ProcessedRules): Bom {
-        return Bom.builder()
-            .apply {
-                rules.includeRules.forEach { include(it) }
-                rules.replaceRules.forEach { replace(it) }
-                rules.removeRules.forEach { remove(it) }
-            }
-            .build()
-    }
 
     internal fun generateRandomUUID() = UUID.randomUUID()
 

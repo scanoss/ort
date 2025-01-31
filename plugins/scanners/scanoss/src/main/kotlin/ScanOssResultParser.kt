@@ -22,6 +22,7 @@ package org.ossreviewtoolkit.plugins.scanners.scanoss
 import com.scanoss.dto.ScanFileDetails
 import com.scanoss.dto.ScanFileResult
 import com.scanoss.dto.enums.MatchType
+import com.scanoss.dto.enums.StatusType
 import org.apache.logging.log4j.kotlin.loggerOf
 
 import java.time.Instant
@@ -61,21 +62,25 @@ internal fun generateSummary(startTime: Instant, endTime: Instant, results: List
 
                 MatchType.snippet -> {
                     val file = requireNotNull(details.file)
-                    val lines = requireNotNull(details.lines)
-                    val sourceLocations = convertLines(file, lines)
-                    val snippets = getSnippets(details)
+                    if (details.status == StatusType.pending) {
+                        val lines = requireNotNull(details.lines)
+                        val sourceLocations = convertLines(file, lines)
+                        val snippets = getSnippets(details)
 
 
-                    if (sourceLocations.size != snippets.size) {
-                        logger.warn("number of local line ranges does not match with oss lines on file '$file'")
+                        if (sourceLocations.size != snippets.size) {
+                            logger.warn("number of local line ranges does not match with oss lines on file '$file'")
+                        }
+
+
+                        for (i in 0 until min(sourceLocations.size, snippets.size)) {
+                            snippetFindings += SnippetFinding(sourceLocations[i], setOf(snippets[i]))
+                        }
+                    } else {
+                        logger.warn("file '$file' is identified, not including on snippet findings")
+                        licenseFindings += getLicenseFindings(details)
+                        copyrightFindings += getCopyrightFindings(details)
                     }
-
-
-                    for (i in 0 until min(sourceLocations.size, snippets.size)) {
-                        snippetFindings += SnippetFinding(sourceLocations[i], setOf(snippets[i]))
-                    }
-
-
                 }
 
                 MatchType.none -> {

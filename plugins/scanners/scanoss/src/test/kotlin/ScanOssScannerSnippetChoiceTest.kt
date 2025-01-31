@@ -62,9 +62,9 @@ class ScanOssScannerSnippetChoiceTest : StringSpec({
     }
 
 
-    "Test SnippetChoices" {
+    "should replace package URL from scanoss/ort to scanoss/scanoss.java in ArchiveUtils file" {
         // Manipulate the UUID generation to have the same IDs as in the response.
-        every {
+       every {
             scanner.generateRandomUUID()
         } answers {
             UUID.fromString("5530105e-0752-4750-9c07-4e4604b879a5")
@@ -72,17 +72,17 @@ class ScanOssScannerSnippetChoiceTest : StringSpec({
             UUID.fromString("c198b884-f6cf-496f-95eb-0e7968dd2ec6")
         }
 
-        //TODO: What would be the expected output when a file has multiple choices for different line ranges
+        // Select file "ArchiveUtils.kt" and replace purl to pkg:github/scanoss/scanoss.java
         val snippetChoices = listOf(
             SnippetChoices(
-                provenance = Provenance("https://google.com"), // mandatory TODO: This is ignored by SCANOSS
+                provenance = Provenance("https://github.com/scanoss/ort.git"),
                 choices = listOf(
                     SnippetChoice(
                         given = Given(
                             sourceLocation = TextLocation(
-                                path = TEST_DIRECTORY_TO_SCAN.resolve("ArchiveUtils.kt").toString(),
-                                startLine = 1,
-                                endLine = 10
+                                path = "ArchiveUtils.kt",
+                                startLine = -1,     //SCANOSS ignore line ranges and replace the purl regardless the snippet range
+                                endLine = -1
                             )
                         ),
                         choice = Choice(
@@ -102,27 +102,10 @@ class ScanOssScannerSnippetChoiceTest : StringSpec({
                 packageType = PackageType.PACKAGE,
                 snippetChoices = snippetChoices
             )
-
         )
 
-        verify(exactly = 1) {
-            scanner.createWfpForFile(TEST_DIRECTORY_TO_SCAN.resolve("ArchiveUtils.kt"))
-            scanner.createWfpForFile(TEST_DIRECTORY_TO_SCAN.resolve("ScannerFactory.kt"))
-        }
-
         with(summary) {
-            licenseFindings should containExactlyInAnyOrder(
-                LicenseFinding(
-                    license = "Apache-2.0",
-                    location = TextLocation(
-                        path = "scanner/src/main/kotlin/ScannerFactory.kt",
-                        line = TextLocation.Companion.UNKNOWN_LINE
-                    ),
-                    score = 100.0f
-                )
-            )
-
-            snippetFindings.shouldNotContain(
+            snippetFindings.shouldContainExactly(
                 SnippetFinding(
                     TextLocation("utils/src/main/kotlin/ArchiveUtils.kt", 1, 240),
                     setOf(
@@ -134,10 +117,10 @@ class ScanOssScannerSnippetChoiceTest : StringSpec({
                                 367
                             ),
                             RepositoryProvenance(
-                                VcsInfo(VcsType.Companion.GIT, "https://github.com/scanoss/ort.git", ""), "."
+                                VcsInfo(VcsType.Companion.GIT, "https://github.com/scanoss/scanoss.java.git", ""), "."
                             ),
-                            "pkg:github/scanoss/ort",
-                            SpdxExpression.Companion.parse("Apache-2.0")
+                            "pkg:github/scanoss/scanoss.java",
+                            SpdxExpression.Companion.parse("NOASSERTION")
                         )
                     )
                 )

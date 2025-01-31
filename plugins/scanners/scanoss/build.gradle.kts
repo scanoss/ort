@@ -34,7 +34,9 @@ dependencies {
 
     implementation(libs.kotlinx.coroutines)
 
-    implementation("com.scanoss:scanoss:0.8.1")
+    //implementation(libs.scanoss)
+
+    implementation(files("${rootProject.projectDir}/libs/scanoss-0.9.0-with-dependencies-exclude-slf4j-simple.jar"))
 
 
 
