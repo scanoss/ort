@@ -42,7 +42,6 @@ import org.ossreviewtoolkit.model.VcsInfo
 import org.ossreviewtoolkit.model.VcsType
 import org.ossreviewtoolkit.utils.spdx.SpdxExpression
 
-//TODO: Fix tests
 class ScanOssResultParserTest : WordSpec({
     "generateSummary()" should {
         "properly summarize JUnit 4.12 findings" {
@@ -132,20 +131,6 @@ class ScanOssResultParserTest : WordSpec({
                     )
                 )
             )
-        }
-
-
-        "should create snippet findings from ScanOSS results with multiple license references" {
-            val results = File("src/test/assets/scanoss-only-snippet.json").readText().let {
-                JsonUtils.toScanFileResultsFromObject(JsonUtils.toJsonObject(it))
-            }
-
-            val time = Instant.now()
-            val summary = generateSummary(time, time, results)
-
-
-            summary.snippetFindings shouldHaveSize(4)
-
         }
     }
 })

@@ -36,7 +36,7 @@ dependencies {
 
     //implementation(libs.scanoss)
 
-    implementation(files("${rootProject.projectDir}/libs/scanoss-0.9.0-with-dependencies-exclude-slf4j-simple.jar"))
+    implementation(files("${rootProject.projectDir}/libs/scanoss-0.10.0-with-dependencies-exclude-slf4j-simple.jar"))
 
 
 

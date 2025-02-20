@@ -61,7 +61,7 @@ internal fun generateSummary(startTime: Instant, endTime: Instant, results: List
                 }
 
                 MatchType.snippet -> {
-                    val file = requireNotNull(details.file)
+                    val file = requireNotNull(result.filePath)
                     if (details.status == StatusType.pending) {
                         val lines = requireNotNull(details.lines)
                         val sourceLocations = convertLines(file, lines)
@@ -72,10 +72,10 @@ internal fun generateSummary(startTime: Instant, endTime: Instant, results: List
                             logger.warn("number of local line ranges does not match with oss lines on file '$file'")
                         }
 
-
                         for (i in 0 until min(sourceLocations.size, snippets.size)) {
                             snippetFindings += SnippetFinding(sourceLocations[i], setOf(snippets[i]))
                         }
+
                     } else {
                         logger.warn("file '$file' is identified, not including on snippet findings")
                         licenseFindings += getLicenseFindings(details)

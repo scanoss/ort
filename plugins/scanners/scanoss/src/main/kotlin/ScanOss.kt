@@ -20,38 +20,37 @@
 package org.ossreviewtoolkit.plugins.scanners.scanoss
 
 import com.scanoss.Scanner
-import com.scanoss.ScannerPostProcessor
 import com.scanoss.Winnowing
-import com.scanoss.dto.ScanFileResult
-import com.scanoss.rest.ScanApi
+import com.scanoss.filters.FilterConfig
 import com.scanoss.settings.*
 import com.scanoss.utils.JsonUtils
 import com.scanoss.utils.PackageDetails
-
-import java.io.File
-import java.time.Instant
-import java.util.UUID
-
 import org.apache.logging.log4j.kotlin.logger
-
+import org.apache.logging.log4j.kotlin.loggerOf
 import org.ossreviewtoolkit.model.ScanSummary
+import org.ossreviewtoolkit.model.config.Excludes
 import org.ossreviewtoolkit.model.config.SnippetChoices
 import org.ossreviewtoolkit.model.config.snippet.SnippetChoice
 import org.ossreviewtoolkit.model.config.snippet.SnippetChoiceReason
-import org.ossreviewtoolkit.scanner.PathScannerWrapper
-import org.ossreviewtoolkit.scanner.ScanContext
-import org.ossreviewtoolkit.scanner.ScannerMatcher
-import org.ossreviewtoolkit.scanner.ScannerWrapperConfig
-import org.ossreviewtoolkit.scanner.ScannerWrapperFactory
+import org.ossreviewtoolkit.scanner.*
 import org.ossreviewtoolkit.utils.common.Options
-import org.ossreviewtoolkit.utils.common.VCS_DIRECTORIES
+import java.io.File
+import java.lang.invoke.MethodHandles
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.time.Instant
+import java.util.*
+import java.util.function.Predicate
+
+
+private val logger = loggerOf(MethodHandles.lookup().lookupClass())
 
 class ScanOss internal constructor(
     override val name: String,
     config: ScanOssConfig,
-    private val wrapperConfig: ScannerWrapperConfig
+    private val wrapperConfig: ScannerWrapperConfig,
+
+
 ) : PathScannerWrapper {
     class Factory : ScannerWrapperFactory<ScanOssConfig>("SCANOSS") {
         override fun create(config: ScanOssConfig, wrapperConfig: ScannerWrapperConfig) =
@@ -62,13 +61,6 @@ class ScanOss internal constructor(
     }
 
     private var config = config
-
-//    private var service = ScanApi.builder()
-//        // As there is only a single endpoint, the SCANOSS API client expects the path to be part of the API URL.
-//        .url(config.apiUrl.removeSuffix("/") + "/scan/direct")
-//        .apiKey(config.apiKey)
-//        .build()
-
 
     override val version: String by lazy {
         // TODO: Find out the best / cheapest way to query the SCANOSS server for its version.
@@ -83,66 +75,28 @@ class ScanOss internal constructor(
 
     override val writeToStorage by lazy { wrapperConfig.writeToStorageWithDefault(matcher) }
 
-    /**
-     * The name of the file corresponding to the fingerprints can be sent to SCANOSS for more precise matches.
-     * However, for anonymity, a unique identifier should be generated and used instead. This property holds the
-     * mapping between the file paths and the unique identifiers. When receiving the response, the UUID will be
-     * replaced by the actual file path.
-     *
-     * TODO: This behavior should be driven by a configuration parameter enabled by default.
-     */
-    private val fileNamesAnonymizationMapping = mutableMapOf<UUID, String>()
-
     override fun scanPath(path: File, context: ScanContext): ScanSummary {
-
-
-
         val startTime = Instant.now()
-
-
-        // Process context and build BOM
-        val bom = processContextAndBuildBom(context, path.toPath())
-
-        val wfpString = buildString {
-            path.walk()
-                .onEnter { it.name !in VCS_DIRECTORIES }
-                .filterNot { it.isDirectory }
-                .forEach {
-                    logger.info { "Computing fingerprint for file ${it.absolutePath}..." }
-                    append(createWfpForFile(it))
-                }
-        }
-        logger.warn("bom: $bom")
-
-        var service = ScanApi.builder()
-            // As there is only a single endpoint, the SCANOSS API client expects the path to be part of the API URL.
-            .url(config.apiUrl.removeSuffix("/") + "/scan/direct")
-            .apiKey(config.apiKey)
-            .settings(Settings.builder().bom(bom).build())
+        val rootPath = path.toPath()
+        val filterConfig = FilterConfig.builder()
+            .customFilter { p ->
+                val isExcluded = context.excludes!!.isPathExcluded(rootPath.relativize(p).toString())
+                logger.debug("Path: ${p}, isExcluded: $isExcluded")
+                isExcluded
+            }
             .build()
 
-        val result = service.scan(
-            wfpString,
-            context.labels["scanOssContext"],
-            context.labels["scanOssId"]?.toIntOrNull() ?: Thread.currentThread().threadId().toInt()
-        )
+        val scanoss = Scanner.builder()
+            .url(config.apiUrl.removeSuffix("/") + "/scan/direct")
+            .apiKey(config.apiKey)
+            .settings(buildSettingsFromORTContext(context, path.toPath()))
+            .filterConfig(filterConfig)
+            .build()
 
-        // Replace the anonymized UUIDs by their file paths.
-        val results = JsonUtils.toScanFileResultsFromObject(JsonUtils.toJsonObject(result)).map {
-            val uuid = UUID.fromString(it.filePath)
-
-            val fileName = fileNamesAnonymizationMapping[uuid] ?: throw IllegalArgumentException(
-                "The $name server returned UUID '$uuid' which is not present in the mapping."
-            )
-
-            ScanFileResult(fileName, it.fileDetails)
-        }
-
-        val scannerPostProcessor: ScannerPostProcessor = ScannerPostProcessor.builder().build()
-        var postProcessedResults = scannerPostProcessor.process(results, bom);
-
+        val rawResults = scanoss.scanFolder(path.absolutePath)
+        val results = JsonUtils.toScanFileResults(rawResults)
         val endTime = Instant.now()
-        return generateSummary(startTime, endTime, postProcessedResults)
+        return generateSummary(startTime, endTime, results)
     }
 
 
@@ -153,14 +107,16 @@ class ScanOss internal constructor(
         val removeRules: List<RemoveRule>
     )
 
-    private fun processContextAndBuildBom(context: ScanContext, rootPath: Path): Bom {
+
+    private fun buildSettingsFromORTContext(context: ScanContext, rootPath: Path): ScanossSettings {
         val rules = processSnippetChoices(context.snippetChoices, rootPath)
-        return Bom.builder()
+        val bom = Bom.builder()
             .ignore(rules.ignoreRules)
             .include(rules.includeRules)
             .replace(rules.replaceRules)
             .remove(rules.removeRules)
             .build()
+        return ScanossSettings.builder().bom(bom).build()
     }
 
     private fun processSnippetChoices(snippetChoices: List<SnippetChoices>, rootPath: Path): ProcessedRules {
@@ -235,14 +191,4 @@ class ScanOss internal constructor(
         }
     }
 
-
-    internal fun generateRandomUUID() = UUID.randomUUID()
-
-    internal fun createWfpForFile(file: File): String {
-        generateRandomUUID().let { uuid ->
-            // TODO: Let's keep the original file extension to give SCANOSS some hint about the mime type.
-            fileNamesAnonymizationMapping[uuid] = file.path
-            return Winnowing.builder().build().wfpForFile(file.path, uuid.toString())
-        }
-    }
 }
