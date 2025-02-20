@@ -77,7 +77,7 @@ class ScanOss internal constructor(
 
     override val configuration = ""
 
-    override val matcher by lazy { ScannerMatcher.create(details, wrapperConfig.matcherConfig) }
+    override val matcher: ScannerMatcher? = null
 
     override val readFromStorage by lazy { wrapperConfig.readFromStorageWithDefault(matcher) }
 
@@ -94,7 +94,6 @@ class ScanOss internal constructor(
     private val fileNamesAnonymizationMapping = mutableMapOf<UUID, String>()
 
     override fun scanPath(path: File, context: ScanContext): ScanSummary {
-        //context.excludes.paths.forEach { it -> it.pattern }
 
 
 
