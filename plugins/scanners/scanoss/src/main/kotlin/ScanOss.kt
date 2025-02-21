@@ -160,14 +160,12 @@ class ScanOss internal constructor(
         replaceRules: MutableList<ReplaceRule>,
         rootPath: Path,
     ) {
-
         includeRules.add(
             Rule.builder()
                 .purl(choice.choice.purl)
                 .path(rootPath.resolve(Paths.get(choice.given.sourceLocation.path)).toString())
                 .build()
         )
-
     }
 
     private fun processNoRelevantFinding(
@@ -176,13 +174,19 @@ class ScanOss internal constructor(
         ignoreRules: MutableList<Rule>,
         rootPath: Path,
     ) {
-        removeRules.add(
-            RemoveRule.builder()
-                .path(rootPath.resolve(Paths.get(choice.given.sourceLocation.path)).toString())
-                .startLine(choice.given.sourceLocation.startLine)
-                .endLine(choice.given.sourceLocation.endLine)
-                .build()
-        )
+        val builder = RemoveRule.builder()
+
+        builder.path(choice.given.sourceLocation.path)
+
+        // Set line range only if both start and end lines are positive numbers
+        // If either line is <= 0, no line range is set and the rule will apply to the entire file
+        if (choice.given.sourceLocation.startLine > 0 && choice.given.sourceLocation.endLine > 0) {
+            builder.startLine(choice.given.sourceLocation.startLine)
+            builder.endLine(choice.given.sourceLocation.endLine)
+        }
+
+        val rule = builder.build()
+        removeRules.add(rule)
     }
 
     private fun processOtherReason(snippetChoice: SnippetChoice) {
