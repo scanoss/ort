@@ -19,6 +19,7 @@
 
 package org.ossreviewtoolkit.plugins.scanners.scanoss
 
+import com.scanoss.dto.LicenseDetails
 import com.scanoss.utils.JsonUtils
 
 import io.kotest.core.spec.style.WordSpec
@@ -28,6 +29,7 @@ import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.should
+import io.kotest.matchers.shouldBe
 
 import java.io.File
 import java.time.Instant
@@ -43,6 +45,31 @@ import org.ossreviewtoolkit.model.VcsType
 import org.ossreviewtoolkit.utils.spdx.SpdxExpression
 
 class ScanOssResultParserTest : WordSpec({
+    "getUniqueLicenseDetails" should {
+
+        val uniqueLicenses = getUniqueLicenseExpression(
+            arrayOf(
+                LicenseDetails.builder().name("MIT").build(),
+                LicenseDetails.builder().name("MIT").build(),
+                LicenseDetails.builder().name("GPL-2.0-only").build(),
+                LicenseDetails.builder().name("GPL-2.0-only WITH Linux-syscall-note").build(),
+                LicenseDetails.builder().name("GPL-2.0-only AND MIT").build()
+            )
+        )
+
+        val decomposed = uniqueLicenses.decompose().toList()
+
+        val expressionStrings = decomposed.map { it.toString() }
+
+        // Check that each license appears exactly once
+        expressionStrings.count { it == "MIT" } shouldBe 1
+        expressionStrings.count { it == "GPL-2.0-only" } shouldBe 1
+        expressionStrings.count { it == "GPL-2.0-only WITH Linux-syscall-note" } shouldBe 1
+
+        // Ensure no unexpected elements
+        expressionStrings.size shouldBe 3
+    }
+
     "generateSummary()" should {
         "properly summarize JUnit 4.12 findings" {
             val results = File("src/test/assets/scanoss-junit-4.12.json").readText().let {
@@ -98,6 +125,7 @@ class ScanOssResultParserTest : WordSpec({
                 "MIT"
             )
 
+
             summary.licenseFindings should haveSize(11)
             summary.licenseFindings shouldContain LicenseFinding(
                 license = "Apache-2.0",
@@ -126,9 +154,11 @@ class ScanOssResultParserTest : WordSpec({
                                 "."
                             ),
                             "pkg:github/vdurmont/semver4j",
-                            SpdxExpression.parse("CC-BY-SA-2.0")
+                            SpdxExpression.parse("CC-BY-SA-2.0"),
+                            additionalData = mapOf("release_date" to "2019-09-13")
                         )
-                    )
+                    ),
+
                 )
             )
         }
