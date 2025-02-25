@@ -19,6 +19,7 @@
 
 package org.ossreviewtoolkit.plugins.scanners.scanoss
 
+import com.scanoss.dto.LicenseDetails
 import com.scanoss.dto.ScanFileDetails
 import com.scanoss.dto.ScanFileResult
 import com.scanoss.dto.enums.MatchType
@@ -158,9 +159,7 @@ private fun getSnippets(details: ScanFileDetails): List<Snippet> {
     val url = requireNotNull(details.url)
     val purls = requireNotNull(details.purls)
 
-    val licenses = details.licenseDetails.orEmpty().mapTo(mutableSetOf()) { license ->
-        SpdxExpression.parse(license.name)
-    }
+    val license = getUniqueLicenseExpression(details.licenseDetails)
 
     val score = matched.substringBeforeLast("%").toFloat()
     val locations = convertLines(fileUrl, ossLines)
@@ -171,8 +170,6 @@ private fun getSnippets(details: ScanFileDetails): List<Snippet> {
     return buildList {
         purls.forEach { purl ->
             locations.forEach { snippetLocation ->
-                val license = licenses.reduceOrNull(SpdxExpression::and)?.sorted()
-                    ?: SpdxLicenseIdExpression(SpdxConstants.NOASSERTION)
 
                 add(Snippet(score, snippetLocation, provenance, purl, license))
             }
@@ -193,3 +190,17 @@ private fun convertLines(file: String, lineRanges: String): List<TextLocation> =
             else -> throw IllegalArgumentException("Unsupported line range '$lineRange'.")
         }
     }
+
+fun getUniqueLicenseExpression(licensesDetails: Array<LicenseDetails>): SpdxExpression {
+
+    if (licensesDetails.isEmpty()) {
+        return SpdxLicenseIdExpression(SpdxConstants.NOASSERTION)
+    }
+
+    return licensesDetails
+        .map { license -> SpdxExpression.parse(license.name) }
+        .reduce { acc, expr -> acc.and(expr) }
+        .simplify()
+
+}
+
