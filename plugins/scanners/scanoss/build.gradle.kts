@@ -35,14 +35,9 @@ dependencies {
     implementation(libs.kotlinx.coroutines)
 
     implementation(libs.scanoss) {
-        artifact {
-            classifier = "with-dependencies-exclude-slf4j-simple"
-        }
+        exclude(group = "org.slf4j", module = "slf4j-simple")
+            .because("the logging provider conflicts with ORT's")
     }
-
-
-    //implementation(files("${rootProject.projectDir}/libs/scanoss-0.10.1-with-dependencies-exclude-slf4j-simple.jar"))
-
 
     funTestApi(testFixtures(projects.scanner))
 
