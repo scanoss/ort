@@ -75,6 +75,45 @@ class ScanOssScannerDirectoryTest : StringSpec({
     }
 
     "The scanner should scan a directory" {
-        //TODO: Complete test
+        val summary = scanner.scanPath(
+            TEST_DIRECTORY_TO_SCAN,
+            ScanContext(labels = emptyMap(), packageType = PackageType.PACKAGE)
+        )
+
+
+        with(summary) {
+            licenseFindings should containExactlyInAnyOrder(
+                LicenseFinding(
+                    license = "Apache-2.0",
+                    location = TextLocation(
+                        path = "scanner/src/main/kotlin/ScannerFactory.kt",
+                        line = TextLocation.UNKNOWN_LINE
+                    ),
+                    score = 100.0f
+                )
+            )
+
+            snippetFindings.shouldContainExactly(
+                SnippetFinding(
+                    TextLocation("utils/src/main/kotlin/ArchiveUtils.kt", 1, 240),
+                    setOf(
+                        Snippet(
+                            99.0f,
+                            TextLocation(
+                                "https://osskb.org/api/file_contents/871fb0c5188c2f620d9b997e225b0095",
+                                128,
+                                367
+                            ),
+                            RepositoryProvenance(
+                                VcsInfo(VcsType.GIT, "https://github.com/scanoss/ort.git", ""), "."
+                            ),
+                            "pkg:github/scanoss/ort",
+                            SpdxExpression.parse("Apache-2.0"),
+                            additionalData = mapOf("release_date" to "2021-03-18")
+                        )
+                    )
+                )
+            )
+        }
     }
 })

@@ -68,6 +68,22 @@ class ScanOssScannerFileTest : StringSpec({
     }
 
     "The scanner should scan a single file" {
-        //TODO: Complete test
+        val summary = scanner.scanPath(
+            TEST_FILE_TO_SCAN,
+            ScanContext(labels = emptyMap(), packageType = PackageType.PACKAGE)
+        )
+
+        with(summary) {
+            licenseFindings should containExactly(
+                LicenseFinding(
+                    license = "Apache-2.0",
+                    location = TextLocation(
+                        path = "scanner/src/main/kotlin/ScannerFactory.kt",
+                        line = TextLocation.UNKNOWN_LINE
+                    ),
+                    score = 100.0f
+                )
+            )
+        }
     }
 })

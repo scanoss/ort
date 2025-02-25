@@ -39,8 +39,7 @@ import java.lang.invoke.MethodHandles
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.time.Instant
-import java.util.*
-import java.util.function.Predicate
+
 
 
 private val logger = loggerOf(MethodHandles.lookup().lookupClass())
@@ -80,7 +79,7 @@ class ScanOss internal constructor(
         val rootPath = path.toPath()
         val filterConfig = FilterConfig.builder()
             .customFilter { p ->
-                val isExcluded = context.excludes!!.isPathExcluded(rootPath.relativize(p).toString())
+                val isExcluded = context.excludes?.isPathExcluded(rootPath.relativize(p).toString()) ?: false
                 logger.debug("Path: ${p}, isExcluded: $isExcluded")
                 isExcluded
             }
@@ -93,7 +92,11 @@ class ScanOss internal constructor(
             .filterConfig(filterConfig)
             .build()
 
-        val rawResults = scanoss.scanFolder(path.absolutePath)
+        val rawResults: List<String> = when {
+            path.isFile -> listOf(scanoss.scanFile(path.absolutePath))
+            else -> scanoss.scanFolder(path.absolutePath)
+        }
+
         val results = JsonUtils.toScanFileResults(rawResults)
         val endTime = Instant.now()
         return generateSummary(startTime, endTime, results)
