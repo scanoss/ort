@@ -81,29 +81,23 @@ License(s):
 [#assign snippetCount = snippetFinding.snippets?size]
 
 [width=100%]
-[cols="1,3,1,3,3,1,1"]
+[cols="1,3,4,1,1"]
 |===
-| Source Location | pURL | License | File | URL | Score | Release Date
+| Source Location | pURL | License | Score | Release Date
 
 .${snippetCount*2}+|
-[#if helper.isFullFileLocation(sourceLocation)]
-Full match
-[#else]
 Partial match +
 ${sourceLocation.startLine?c}-${sourceLocation.endLine?c}
-[/#if]
+
 
 [#list snippetFinding.snippets as snippet ]
-[#assign matchType = ""]
-[#assign snippetFilePath = snippet.location.path!""]
-[#if matchType == "PARTIAL" && snippetFilePath?has_content && snippet.additionalData['matchedLinesSnipped']?has_content]
-    [#assign snippetFilePath = "${snippetFilePath}#${snippet.additionalData['matchedLinesSnippet']}"]
-[/#if]
 
 | ${snippet.purl!""}
-| ${snippet.license!""} | ${snippetFilePath} | TODO
-| ${snippet.score!""} | TODO
-6+a|
+| ${snippet.license!""}
+| ${snippet.score!""}
+| ${snippet.additionalData['release_date']}
+
+4+a|
 .Create a snippet choice for this snippet or mark it as false positive
 [%collapsible]
 ====
