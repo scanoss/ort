@@ -34,10 +34,14 @@ dependencies {
 
     implementation(libs.kotlinx.coroutines)
 
-    //implementation(libs.scanoss)
+    implementation(libs.scanoss) {
+        artifact {
+            classifier = "with-dependencies-exclude-slf4j-simple"
+        }
+    }
 
-    implementation(files("${rootProject.projectDir}/libs/scanoss-0.10.0-with-dependencies-exclude-slf4j-simple.jar"))
 
+    //implementation(files("${rootProject.projectDir}/libs/scanoss-0.10.1-with-dependencies-exclude-slf4j-simple.jar"))
 
 
     funTestApi(testFixtures(projects.scanner))
